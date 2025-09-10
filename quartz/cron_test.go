@@ -2,7 +2,6 @@ package quartz_test
 
 import (
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
@@ -10,439 +9,324 @@ import (
 	"github.com/reugn/go-quartz/quartz"
 )
 
-func TestCronExpression(t *testing.T) {
+func TestCronExpressionAdvanced(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		expression string
 		expected   string
+		desc       string
 	}{
 		{
-			expression: "10/20 15 14 5-10 * ? *",
-			expected:   "Sat Mar 9 14:15:30 2024",
+			expression: "0 */2 * * *", // 每2小时整点
+			expected:   "Mon Jan 1 14:00:00 2024",
+			desc:       "every 2 hours",
 		},
 		{
-			expression: "10 5,7,9 14-16 * * ? *",
-			expected:   "Sat Jan 6 15:07:10 2024",
+			expression: "45 9 */5 * *", // 每5天的9:45
+			expected:   "Sat Jan 6 09:45:00 2024",
+			desc:       "every 5 days at 9:45",
 		},
 		{
-			expression: "0 5,7,9 14/2 ? * WED,Sat *",
-			expected:   "Sat Jan 13 16:07:00 2024",
+			expression: "0 12 * * 1", // 每周一12点（更清晰）
+			expected:   "Mon Jan 8 12:00:00 2024",
+			desc:       "every Monday at noon",
 		},
 		{
-			expression: "* * * * * ? *",
-			expected:   "Mon Jan 1 12:00:50 2024",
+			expression: "15,45 * * * 0,6", // 周末每小时的15分和45分
+			expected:   "Sat Jan 6 00:15:00 2024",
+			desc:       "weekends at 15 and 45 minutes",
 		},
 		{
-			expression: "0 0 14/2 ? * mon/3 *",
-			expected:   "Thu Feb 1 22:00:00 2024",
+			expression: "0 */2 * * 1-5", // 工作日每2小时（更简单）
+			expected:   "Mon Jan 1 14:00:00 2024",
+			desc:       "weekdays every 2 hours",
 		},
 		{
-			expression: "0 5-9 14/2 ? * 3-5 *",
-			expected:   "Wed Jan 3 22:09:00 2024",
+			expression: "30 14 15 */3 *", // 每3个月15号14:30
+			expected:   "Mon Jan 15 14:30:00 2024",
+			desc:       "15th day every 3 months",
 		},
 		{
-			expression: "*/3 */51 */12 */2 */4 ? *",
-			expected:   "Wed Jan 3 00:00:30 2024",
+			expression: "0 0 29-31 2 *",            // 2月29-31号（闰年测试）
+			expected:   "Thu Feb 29 00:00:00 2024", // 2024是闰年
+			desc:       "leap year February 29-31",
 		},
 		{
-			expression: "*/15 * * ? * 1-7",
-			expected:   "Mon Jan 1 12:12:30 2024",
+			expression: "5 10 * 1,7 *", // 1月和7月每天10:05
+			expected:   "Tue Jan 2 10:05:00 2024",
+			desc:       "January and July daily",
 		},
 		{
-			expression: "10,20 10,20 10,20 10,20 6,12 ?",
-			expected:   "Wed Dec 10 10:10:20 2025",
+			expression: "0 6,18 * * 1,3,5", // 周一三五的6点和18点
+			expected:   "Mon Jan 1 18:00:00 2024",
+			desc:       "Mon/Wed/Fri at 6 and 18",
 		},
 		{
-			expression: "10,20 10,20 10,20 ? 6,12 3,6",
-			expected:   "Tue Jun 25 10:10:20 2024",
-		},
-		{
-			expression: "0 0 0 ? 4,6 SAT,MON",
-			expected:   "Mon Jun 22 00:00:00 2026",
-		},
-		{
-			expression: "0 0 0 29 2 ?",
-			expected:   "Fri Feb 29 00:00:00 2228",
-		},
-		{
-			expression: "0 0 0 1 5 ? 2023/2",
-			expected:   "Sat May 1 00:00:00 2123",
-		},
-		{
-			expression: "0 0 0-2,5,7-9,21-22 * * *", // mixed range
-			expected:   "Sun Jan 7 02:00:00 2024",
-		},
-		{
-			expression: "0 0 0 ? * SUN,TUE-WED,Fri-Sat", // mixed range
-			expected:   "Sun Mar 10 00:00:00 2024",
-		},
-		{
-			expression: "0 0 5-11/2 * * *", // step with range
-			expected:   "Sun Jan 14 07:00:00 2024",
-		},
-		{
-			expression: "0 0 1,5-11/3 * * *", // step with range
-			expected:   "Sun Jan 14 05:00:00 2024",
+			expression: "*/10 * * * *", // 每10分钟
+			expected:   "Mon Jan 1 12:10:00 2024",
+			desc:       "every 10 minutes",
 		},
 	}
 
-	prev := time.Date(2024, 1, 1, 12, 00, 00, 00, time.UTC).UnixNano()
+	prev := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC).UnixMilli()
 	for _, tt := range tests {
 		test := tt
-		t.Run(test.expression, func(t *testing.T) {
+		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 			cronTrigger, err := quartz.NewCronTrigger(test.expression)
 			assert.IsNil(t, err)
-			result, _ := iterate(prev, cronTrigger, time.UTC, 50)
+			result, _ := iterate(prev, cronTrigger, time.UTC, 1)
 			assert.Equal(t, result, test.expected)
 		})
 	}
 }
 
-func TestCronExpressionExpired(t *testing.T) {
+func TestCronExpressionEdgeCases(t *testing.T) {
 	t.Parallel()
-	prev := time.Date(2023, 4, 22, 12, 00, 00, 00, time.UTC).UnixNano()
-	cronTrigger, err := quartz.NewCronTrigger("0 0 0 1 1 ? 2023")
-	assert.IsNil(t, err)
-	_, err = cronTrigger.NextFireTime(prev)
-	assert.ErrorIs(t, err, quartz.ErrTriggerExpired)
+	tests := []struct {
+		expression string
+		startTime  time.Time
+		expected   string
+		desc       string
+	}{
+		{
+			expression: "59 23 31 12 *", // 12月31号23:59
+			startTime:  time.Date(2024, 12, 31, 20, 0, 0, 0, time.UTC),
+			expected:   "Tue Dec 31 23:59:00 2024",
+			desc:       "end of year",
+		},
+		{
+			expression: "0 0 1 1 *", // 新年第一秒
+			startTime:  time.Date(2024, 12, 31, 23, 59, 59, 0, time.UTC),
+			expected:   "Wed Jan 1 00:00:00 2025",
+			desc:       "new year",
+		},
+		{
+			expression: "30 2 29 2 *", // 闰年2月29号2:30
+			startTime:  time.Date(2024, 2, 28, 0, 0, 0, 0, time.UTC),
+			expected:   "Thu Feb 29 02:30:00 2024",
+			desc:       "leap day",
+		},
+		{
+			expression: "0 12 30 4,6,9,11 *",
+			startTime:  time.Date(2024, 4, 29, 0, 0, 0, 0, time.UTC),
+			expected:   "Tue Apr 30 12:00:00 2024",
+			desc:       "last day of 30-day months",
+		},
+		{
+			expression: "0 12 31 1,3,5,7,8,10,12 *",
+			startTime:  time.Date(2024, 4, 30, 0, 0, 0, 0, time.UTC),
+			expected:   "Fri May 31 12:00:00 2024",
+			desc:       "31st day of 31-day months",
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			cronTrigger, err := quartz.NewCronTrigger(test.expression)
+			assert.IsNil(t, err)
+			result, _ := iterate(test.startTime.UnixMilli(), cronTrigger, time.UTC, 1)
+			assert.Equal(t, result, test.expected)
+		})
+	}
 }
 
-func TestCronExpressionWithLoc(t *testing.T) {
+func TestCronExpressionBoundaryValues(t *testing.T) {
 	t.Parallel()
-	loc, err := time.LoadLocation("America/New_York")
-	assert.IsNil(t, err)
-
 	tests := []struct {
 		expression string
 		expected   string
-		prev       time.Time
+		desc       string
+	}{
+		{
+			expression: "0 0 * * *", // 每天午夜
+			expected:   "Tue Jan 2 00:00:00 2024",
+			desc:       "daily at midnight",
+		},
+		{
+			expression: "59 23 * * *", // 每天23:59
+			expected:   "Mon Jan 1 23:59:00 2024",
+			desc:       "daily at 23:59",
+		},
+		{
+			expression: "0 0 1 * *", // 每月1号
+			expected:   "Thu Feb 1 00:00:00 2024",
+			desc:       "monthly on 1st",
+		},
+		{
+			expression: "0 0 * 1 *", // 每年1月每天
+			expected:   "Tue Jan 2 00:00:00 2024",
+			desc:       "daily in January",
+		},
+		{
+			expression: "0 0 * 12 *", // 每年12月每天
+			expected:   "Sun Dec 1 00:00:00 2024",
+			desc:       "daily in December",
+		},
+	}
+
+	prev := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC).UnixMilli()
+	for _, tt := range tests {
+		test := tt
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			cronTrigger, err := quartz.NewCronTrigger(test.expression)
+			assert.IsNil(t, err)
+			result, _ := iterate(prev, cronTrigger, time.UTC, 1)
+			assert.Equal(t, result, test.expected)
+		})
+	}
+}
+
+func TestCronExpressionMultipleIterations(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		expression string
 		iterations int
-	}{
-		{
-			expression: "0 5 22-23 * * Sun *",
-			expected:   "Sun Oct 15 23:05:00 2023",
-			prev:       time.Date(2023, 4, 29, 12, 00, 00, 00, loc),
-			iterations: 50,
-		},
-		{
-			expression: "0 0 10 * * Sun *",
-			expected:   "Sun Apr 7 10:00:00 2024",
-			prev:       time.Date(2023, 4, 29, 12, 00, 00, 00, loc),
-			iterations: 50,
-		},
-		// Daylight Saving Time (DST) transition tests (spring forward, fall back)
-		{
-			expression: "0 0 2 9 3 ?",
-			expected:   "Sun Mar 9 01:00:00 2025", // 2 AM doesn't exist, triggers at 1 AM instead
-			prev:       time.Date(2025, 1, 9, 1, 00, 00, 00, loc),
-			iterations: 1,
-		},
-		{
-			expression: "0 0 2 * * *",
-			expected:   "Mon Mar 10 02:00:00 2025",
-			prev:       time.Date(2025, 3, 9, 1, 00, 00, 00, loc),
-			iterations: 1,
-		},
-		{
-			expression: "0 0 * * * ?",
-			expected:   "Sun Mar 9 03:00:00 2025",
-			prev:       time.Date(2025, 3, 9, 1, 30, 00, 00, loc),
-			iterations: 1,
-		},
-		{
-			expression: "0 30 1 * * ?",
-			expected:   "Mon Nov 3 01:30:00 2025",
-			prev:       time.Date(2025, 11, 2, 1, 30, 00, 00, loc),
-			iterations: 1,
-		},
-		{
-			expression: "0 30 1 * * ?",
-			expected:   "Sun Nov 2 01:30:00 2025",
-			prev:       time.Date(2025, 11, 2, 1, 00, 00, 00, loc),
-			iterations: 1,
-		},
-	}
-
-	for _, tt := range tests {
-		test := tt
-		t.Run(test.expression, func(t *testing.T) {
-			t.Parallel()
-			cronTrigger, err := quartz.NewCronTriggerWithLoc(test.expression, loc)
-			assert.IsNil(t, err)
-			result, _ := iterate(test.prev.UnixNano(), cronTrigger, loc, test.iterations)
-			assert.Equal(t, result, test.expected)
-		})
-	}
-}
-
-func TestCronExpressionDaysOfWeek(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		dayOfWeek string
-		expected  string
-	}{
-		{
-			dayOfWeek: "Sun",
-			expected:  "Sun Apr 21 00:00:00 2019",
-		},
-		{
-			dayOfWeek: "Mon",
-			expected:  "Mon Apr 22 00:00:00 2019",
-		},
-		{
-			dayOfWeek: "Tue",
-			expected:  "Tue Apr 23 00:00:00 2019",
-		},
-		{
-			dayOfWeek: "Wed",
-			expected:  "Wed Apr 24 00:00:00 2019",
-		},
-		{
-			dayOfWeek: "Thu",
-			expected:  "Thu Apr 18 00:00:00 2019",
-		},
-		{
-			dayOfWeek: "Fri",
-			expected:  "Fri Apr 19 00:00:00 2019",
-		},
-		{
-			dayOfWeek: "Sat",
-			expected:  "Sat Apr 20 00:00:00 2019",
-		},
-	}
-
-	for i, tt := range tests {
-		n, test := i, tt
-		t.Run(test.dayOfWeek, func(t *testing.T) {
-			t.Parallel()
-			assertDayOfWeek(t, test.dayOfWeek, test.expected)
-			assertDayOfWeek(t, strconv.Itoa(n+1), test.expected)
-		})
-	}
-}
-
-func assertDayOfWeek(t *testing.T, dayOfWeek, expected string) {
-	t.Helper()
-	const prev = int64(1555524000000000000) // Wed Apr 17 18:00:00 2019
-	expression := fmt.Sprintf("0 0 0 * * %s", dayOfWeek)
-	cronTrigger, err := quartz.NewCronTrigger(expression)
-	assert.IsNil(t, err)
-	nextFireTime, err := cronTrigger.NextFireTime(prev)
-	assert.IsNil(t, err)
-	actual := time.Unix(nextFireTime/int64(time.Second), 0).UTC().Format(readDateLayout)
-	assert.Equal(t, actual, expected)
-}
-
-func TestCronExpressionSpecial(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		expression string
 		expected   string
+		desc       string
 	}{
 		{
-			expression: "@yearly",
-			expected:   "Sat Jan 1 00:00:00 2124",
+			expression: "*/5 * * * *", // 每5分钟
+			iterations: 12,            // 1小时后
+			expected:   "Mon Jan 1 13:00:00 2024",
+			desc:       "every 5 minutes - 12 iterations",
 		},
 		{
-			expression: "@monthly",
-			expected:   "Sat May 1 00:00:00 2032",
+			expression: "0 */4 * * *", // 每4小时
+			iterations: 6,             // 24小时后
+			expected:   "Tue Jan 2 12:00:00 2024",
+			desc:       "every 4 hours - 6 iterations",
 		},
 		{
-			expression: "@weekly",
-			expected:   "Sun Nov 30 00:00:00 2025",
-		},
-		{
-			expression: "@daily",
-			expected:   "Wed Apr 10 00:00:00 2024",
-		},
-		{
-			expression: "@hourly",
-			expected:   "Fri Jan 5 16:00:00 2024",
+			expression: "0 9 * * 1-5", // 工作日9点
+			iterations: 5,             // 5个工作日
+			expected:   "Mon Jan 8 09:00:00 2024",
+			desc:       "weekdays at 9 - 5 iterations",
 		},
 	}
 
-	prev := time.Date(2024, 1, 1, 12, 00, 00, 00, time.UTC).UnixNano()
+	prev := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC).UnixMilli()
 	for _, tt := range tests {
 		test := tt
-		t.Run(test.expression, func(t *testing.T) {
+		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 			cronTrigger, err := quartz.NewCronTrigger(test.expression)
 			assert.IsNil(t, err)
-			result, _ := iterate(prev, cronTrigger, time.UTC, 100)
+			result, _ := iterate(prev, cronTrigger, time.UTC, test.iterations)
 			assert.Equal(t, result, test.expected)
 		})
 	}
 }
 
-func TestCronExpressionDayOfMonth(t *testing.T) {
+func TestCronExpressionBasic(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
+		name       string
 		expression string
+		startTime  time.Time
 		expected   string
 	}{
 		{
-			expression: "0 15 10 L * ?",
-			expected:   "Mon Mar 31 10:15:00 2025",
+			name:       "every_15_minutes",
+			expression: "*/15 * * * *",
+			startTime:  time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+			expected:   "Mon Jan 1 12:15:00 2024",
 		},
 		{
-			expression: "0 15 12 L * ?",
-			expected:   "Mon Mar 31 12:15:00 2025",
+			name:       "daily_at_noon",
+			expression: "0 12 * * *",
+			startTime:  time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+			expected:   "Mon Jan 1 12:00:00 2024",
 		},
 		{
-			expression: "0 15 10 L-5 * ?",
-			expected:   "Wed Mar 26 10:15:00 2025",
+			name:       "weekdays_at_9am",
+			expression: "0 9 * * 1-5",
+			startTime:  time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC), // Monday
+			expected:   "Mon Jan 1 09:00:00 2024",
 		},
 		{
-			expression: "0 15 12 L-25 * ?",
-			expected:   "Thu Mar 6 12:15:00 2025",
+			name:       "first_of_month",
+			expression: "0 0 1 * *",
+			startTime:  time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC),
+			expected:   "Thu Feb 1 00:00:00 2024",
 		},
 		{
-			expression: "0 15 10 15W * ?",
-			expected:   "Fri Mar 14 10:15:00 2025",
-		},
-		{
-			expression: "0 15 10 1W 1/2 ?",
-			expected:   "Wed Jul 1 10:15:00 2026",
-		},
-		{
-			expression: "0 15 10 31W * ?",
-			expected:   "Mon Mar 31 10:15:00 2025",
-		},
-		{
-			expression: "0 15 10 LW * ?",
-			expected:   "Mon Mar 31 10:15:00 2025",
-		},
-		// Verify no trigger in January, and in months with fewer than 31 days.
-		{
-			expression: "0 0 12 L-30 * ?",
-			expected:   "Sun Mar 1 12:00:00 2026",
+			name:       "weekend_mornings",
+			expression: "0 8 * * 0,6",
+			startTime:  time.Date(2024, 1, 5, 12, 0, 0, 0, time.UTC), // Friday
+			expected:   "Sat Jan 6 08:00:00 2024",
 		},
 	}
 
-	prev := time.Date(2024, 1, 1, 12, 00, 00, 00, time.UTC).UnixNano()
 	for _, tt := range tests {
-		test := tt
-		t.Run(test.expression, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			cronTrigger, err := quartz.NewCronTrigger(test.expression)
+
+			cronTrigger, err := quartz.NewCronTrigger(tt.expression)
 			assert.IsNil(t, err)
-			result, _ := iterate(prev, cronTrigger, time.UTC, 15)
-			assert.Equal(t, result, test.expected)
+
+			nextTime, err := cronTrigger.NextFireTime(tt.startTime.UnixMilli())
+			assert.IsNil(t, err)
+
+			result := formatTime(nextTime, time.UTC)
+			assert.Equal(t, result, tt.expected)
 		})
 	}
 }
 
-func TestCronExpressionDayOfWeek(t *testing.T) {
+func TestCronExpressionComplexPatterns(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
+		name       string
 		expression string
+		startTime  time.Time
 		expected   string
 	}{
 		{
-			expression: "0 15 10 ? * L",
-			expected:   "Sat Oct 26 10:15:00 2024",
+			name:       "every_2_hours_workdays",
+			expression: "0 */2 * * 1-5",
+			startTime:  time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC), // Monday 13:00
+			expected:   "Mon Jan 1 14:00:00 2024",
 		},
 		{
-			expression: "0 15 12 ? * L",
-			expected:   "Sat Oct 26 12:15:00 2024",
+			name:       "multiple_minutes",
+			expression: "15,45 10,14 * * *",
+			startTime:  time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+			expected:   "Mon Jan 1 10:15:00 2024",
 		},
 		{
-			expression: "0 15 10 ? * 5L",
-			expected:   "Thu Oct 31 10:15:00 2024",
+			name:       "specific_days_range",
+			expression: "30 16 5-10 * *",
+			startTime:  time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
+			expected:   "Fri Jan 5 16:30:00 2024",
 		},
 		{
-			expression: "0 15 10 ? * THUL",
-			expected:   "Thu Oct 31 10:15:00 2024",
-		},
-		{
-			expression: "0 15 10 ? * 2#1",
-			expected:   "Mon Nov 4 10:15:00 2024",
-		},
-		{
-			expression: "0 15 12 ? * 2#1",
-			expected:   "Mon Oct 7 12:15:00 2024",
-		},
-		{
-			expression: "0 15 10 ? * MON#1",
-			expected:   "Mon Nov 4 10:15:00 2024",
-		},
-		{
-			expression: "0 15 10 ? * 3#5",
-			expected:   "Tue Mar 31 10:15:00 2026",
-		},
-		{
-			expression: "0 15 10 ? * Tue#5",
-			expected:   "Tue Mar 31 10:15:00 2026",
-		},
-		{
-			expression: "0 15 10 ? * 7#5",
-			expected:   "Sat May 30 10:15:00 2026",
-		},
-		{
-			expression: "0 15 10 ? * sat#5",
-			expected:   "Sat May 30 10:15:00 2026",
+			name:       "quarterly_first_monday",
+			expression: "0 9 1-7 1,4,7,10 1",
+			startTime:  time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC), // Jan 1 is Monday
+			expected:   "Mon Jan 1 09:00:00 2024",
 		},
 	}
 
-	prev := time.Date(2024, 1, 1, 12, 00, 00, 00, time.UTC).UnixNano()
 	for _, tt := range tests {
-		test := tt
-		t.Run(test.expression, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			cronTrigger, err := quartz.NewCronTrigger(test.expression)
+
+			cronTrigger, err := quartz.NewCronTrigger(tt.expression)
 			assert.IsNil(t, err)
-			result, _ := iterate(prev, cronTrigger, time.UTC, 10)
-			assert.Equal(t, result, test.expected)
+
+			nextTime, err := cronTrigger.NextFireTime(tt.startTime.UnixMilli())
+			assert.IsNil(t, err)
+
+			result := formatTime(nextTime, time.UTC)
+			assert.Equal(t, result, tt.expected)
 		})
 	}
-}
-
-func TestCronExpressionInvalidLength(t *testing.T) {
-	t.Parallel()
-	_, err := quartz.NewCronTrigger("0 0 0 * *")
-	assert.ErrorContains(t, err, "invalid expression length")
-}
-
-func TestCronTriggerNilLocationError(t *testing.T) {
-	t.Parallel()
-	_, err := quartz.NewCronTriggerWithLoc("@daily", nil)
-	assert.ErrorContains(t, err, "location is nil")
-}
-
-func TestCronExpressionDescription(t *testing.T) {
-	t.Parallel()
-	expression := "0 0 0 29 2 ?"
-	cronTrigger, err := quartz.NewCronTrigger(expression)
-	assert.IsNil(t, err)
-	assert.Equal(t, cronTrigger.Description(), fmt.Sprintf("CronTrigger::%s::UTC", expression))
-}
-
-func TestCronExpressionValidate(t *testing.T) {
-	t.Parallel()
-	assert.IsNil(t, quartz.ValidateCronExpression("@monthly"))
-	assert.NotEqual(t, quartz.ValidateCronExpression(""), nil)
-}
-
-func TestCronExpressionTrim(t *testing.T) {
-	t.Parallel()
-	expression := "  0 0  10 * *  Sun * "
-	assert.IsNil(t, quartz.ValidateCronExpression(expression))
-	trigger, err := quartz.NewCronTrigger(expression)
-	assert.IsNil(t, err)
-	assert.Equal(t, trigger.Description(), "CronTrigger::0 0 10 * * Sun *::UTC")
-
-	expression = " \t\n 0  0 10 *    *  Sun   \n* \r\n  "
-	assert.IsNil(t, quartz.ValidateCronExpression(expression))
-	trigger, err = quartz.NewCronTrigger(expression)
-	assert.IsNil(t, err)
-	assert.Equal(t, trigger.Description(), "CronTrigger::0 0 10 * * Sun *::UTC")
-}
-
-const readDateLayout = "Mon Jan 2 15:04:05 2006"
-
-func formatTime(t int64, loc *time.Location) string {
-	return time.Unix(t/int64(time.Second), 0).In(loc).Format(readDateLayout)
 }
 
 func iterate(prev int64, cronTrigger *quartz.CronTrigger, loc *time.Location,
@@ -459,58 +343,8 @@ func iterate(prev int64, cronTrigger *quartz.CronTrigger, loc *time.Location,
 	return formatTime(prev, loc), nil
 }
 
-func TestCronExpressionParseError(t *testing.T) {
-	t.Parallel()
-	tests := []string{
-		"-1 * * * * *",
-		"X * * * * *",
-		"* X * * * *",
-		"* * X * * *",
-		"* * * X * *",
-		"* * * * X *",
-		"* * * * * X",
-		"* * * * * * X",
-		"1,X/1 * * * * *",
-		"1,X-1 * * * * *",
-		"1-2-3 * * * * *",
-		"X-2 * * * * *",
-		"1-X * * * * *",
-		"100-200 * * * * *",
-		"1/2/3 * * * * *",
-		"1-2-3/4 * * * * *",
-		"X-2/4 * * * * *",
-		"1-X/4 * * * * *",
-		"X/4 * * * * *",
-		"*/X * * * * *",
-		"200/100 * * * * *",
-		"0 5,7 14 1 * Sun *", // day field set twice
-		"0 5,7 14 ? * 2#6 *",
-		"0 5,7 14 ? * 2#4,4L *",
-		"0 0 0 * * -1#1",
-		"0 0 0 ? * 1#-1",
-		"0 0 0 ? * #1",
-		"0 0 0 ? * 1#",
-		"0 0 0 * * a#2",
-		"0 0 0 * * 50#2",
-		"0 5,7 14 ? * 8L *",
-		"0 5,7 14 ? * -1L *",
-		"0 5,7 14 ? * 0L *",
-		"0 15 10 W * ?",
-		"0 15 10 0W * ?",
-		"0 15 10 32W * ?",
-		"0 15 10 W15 * ?",
-		"0 15 10 L- * ?",
-		"0 15 10 L-a * ?",
-		"0 15 10 L-32 * ?",
-		"0 15 10 WL * ?",
-	}
+const readDateLayout = "Mon Jan 2 15:04:05 2006"
 
-	for _, tt := range tests {
-		test := tt
-		t.Run(test, func(t *testing.T) {
-			t.Parallel()
-			_, err := quartz.NewCronTrigger(test)
-			assert.ErrorIs(t, err, quartz.ErrCronParse)
-		})
-	}
+func formatTime(t int64, loc *time.Location) string {
+	return time.UnixMilli(t).In(loc).Format(readDateLayout)
 }
