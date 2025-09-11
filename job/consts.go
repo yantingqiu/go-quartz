@@ -1,5 +1,7 @@
 package job
 
+import "time"
+
 // Status represents a Job status.
 type Status int8
 
@@ -12,4 +14,10 @@ const (
 
 	// StatusFailure indicates that the Job failed.
 	StatusFailure
+
+	StatusTimeout
+)
+
+const (
+	JobTimeout = 3600 * time.Second
 )

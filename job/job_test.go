@@ -244,11 +244,11 @@ func TestShellJob_Execute(t *testing.T) {
 func TestShellJob_WithCallback(t *testing.T) {
 	stdoutShell := "echo -n ok"
 	resultChan := make(chan string, 1)
-	shJob := job.NewShellJobWithCallback(
+	shJob := job.NewShellJob(
 		stdoutShell,
-		func(_ context.Context, job *job.ShellJob) {
+		job.WithCallback(func(_ context.Context, job *job.ShellJob) {
 			resultChan <- job.Stdout()
-		},
+		}),
 	)
 	_ = shJob.Execute(context.Background())
 
