@@ -68,12 +68,10 @@ func (ct *CronTrigger) Description() string {
 	return fmt.Sprintf("CronTrigger%s%s%s%s", Sep, ct.expression, Sep, ct.location.String())
 }
 
-// GetExpression 返回 cron 表达式
 func (ct *CronTrigger) GetExpression() string {
 	return ct.expression
 }
 
-// GetLocation 返回时区信息
 func (ct *CronTrigger) GetLocation() *time.Location {
 	return ct.location
 }
